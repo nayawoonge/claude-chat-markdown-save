@@ -68,14 +68,31 @@ export CLAUDE_LOG_INCLUDE_TOOLS=0
 | --- | --- | --- |
 | `CLAUDE_LOG_DIR` | `~/claude-logs` | 마크다운 파일이 저장될 위치 |
 | `CLAUDE_LOG_INCLUDE_THINKING` | `0` | `1`이면 모델의 thinking(사고 과정) 블록 포함 |
-| `CLAUDE_LOG_INCLUDE_TOOLS` | `1` | `0`이면 도구 호출·결과 제외 (순수 대화만) |
+| `CLAUDE_LOG_INCLUDE_TOOLS` | `1` | 도구 출력 마스터 스위치. `0`이면 도구 호출·결과 모두 제외 (순수 대화만) |
+| `CLAUDE_LOG_INCLUDE_TOOL_CALLS` | `…_TOOLS` 따름 | `0`이면 도구 **호출**(모델이 실행하는 bash 명령) 숨김 |
+| `CLAUDE_LOG_INCLUDE_TOOL_RESULTS` | `…_TOOLS` 따름 | `0`이면 도구 **결과**(명령 출력) 숨김 |
 | `CLAUDE_LOG_MAX_TOOL_CHARS` | `1500` | 긴 도구 입력/출력을 N자로 잘라냄 |
+
+`CLAUDE_LOG_INCLUDE_TOOLS`가 마스터 스위치이고, `…_TOOL_CALLS` / `…_TOOL_RESULTS` 두 플래그로 각각 따로 제어할 수 있습니다.
 
 예시 — 현재 프로젝트 폴더에 저장하고, 대화만 남기기:
 
 ```bash
 export CLAUDE_LOG_DIR="./.claude-logs"
 export CLAUDE_LOG_INCLUDE_TOOLS=0
+```
+
+예시 — **thinking(사고 과정)은 남기고, bash 명령은 숨기기** (명령 출력도 함께 숨김):
+
+```bash
+export CLAUDE_LOG_INCLUDE_THINKING=1
+export CLAUDE_LOG_INCLUDE_TOOLS=0
+```
+
+예시 — 명령은 보이되, (지저분한) 명령 출력만 숨기기:
+
+```bash
+export CLAUDE_LOG_INCLUDE_TOOL_RESULTS=0
 ```
 
 ## 동작 방식

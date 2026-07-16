@@ -68,14 +68,31 @@ All optional — set as environment variables (e.g. in your shell profile):
 | --- | --- | --- |
 | `CLAUDE_LOG_DIR` | `~/claude-logs` | Where the Markdown files go |
 | `CLAUDE_LOG_INCLUDE_THINKING` | `0` | `1` to include the model's thinking blocks |
-| `CLAUDE_LOG_INCLUDE_TOOLS` | `1` | `0` to keep only the chat (omit tool calls / results) |
+| `CLAUDE_LOG_INCLUDE_TOOLS` | `1` | Master switch for tool output. `0` keeps only the chat (hides both calls and results) |
+| `CLAUDE_LOG_INCLUDE_TOOL_CALLS` | follows `…_TOOLS` | `0` hides tool **calls** — the bash commands the model runs |
+| `CLAUDE_LOG_INCLUDE_TOOL_RESULTS` | follows `…_TOOLS` | `0` hides tool **results** — the command output |
 | `CLAUDE_LOG_MAX_TOOL_CHARS` | `1500` | Truncate long tool input/output to N chars |
+
+`CLAUDE_LOG_INCLUDE_TOOLS` is the master switch; the two `…_TOOL_CALLS` / `…_TOOL_RESULTS` flags let you control each independently.
 
 Example — save into the current project folder and keep only the chat:
 
 ```bash
 export CLAUDE_LOG_DIR="./.claude-logs"
 export CLAUDE_LOG_INCLUDE_TOOLS=0
+```
+
+Example — **keep the thinking, but hide the bash commands** (and their output):
+
+```bash
+export CLAUDE_LOG_INCLUDE_THINKING=1
+export CLAUDE_LOG_INCLUDE_TOOLS=0
+```
+
+Example — show the commands, but hide their (often noisy) output:
+
+```bash
+export CLAUDE_LOG_INCLUDE_TOOL_RESULTS=0
 ```
 
 ## How it works

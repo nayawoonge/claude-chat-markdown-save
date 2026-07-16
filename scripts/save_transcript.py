@@ -16,10 +16,18 @@ skipped, missing keys fall back to sensible defaults, and the script never
 raises into the hook runner (any error is swallowed so it can't block Claude).
 
 Configuration (all optional, via environment variables):
-  CLAUDE_LOG_DIR                Output directory (default: ~/claude-logs)
-  CLAUDE_LOG_INCLUDE_THINKING   "1" to include the model's thinking blocks (default: 0)
-  CLAUDE_LOG_INCLUDE_TOOLS      "0" to omit tool calls/results (default: 1)
-  CLAUDE_LOG_MAX_TOOL_CHARS     Truncate tool input/output to N chars (default: 1500)
+  CLAUDE_LOG_DIR                  Output directory (default: ~/claude-logs)
+  CLAUDE_LOG_INCLUDE_THINKING     "1" to include the model's thinking blocks (default: 0)
+  CLAUDE_LOG_INCLUDE_TOOLS        Master switch for tool output (default: 1). Sets the
+                                  default for the two flags below.
+  CLAUDE_LOG_INCLUDE_TOOL_CALLS   "0" to hide tool CALLS — the bash commands / tool_use
+                                  the model runs (default: follows CLAUDE_LOG_INCLUDE_TOOLS)
+  CLAUDE_LOG_INCLUDE_TOOL_RESULTS "0" to hide tool RESULTS — the command output
+                                  (default: follows CLAUDE_LOG_INCLUDE_TOOLS)
+  CLAUDE_LOG_MAX_TOOL_CHARS       Truncate tool input/output to N chars (default: 1500)
+
+Example — keep the thinking but drop the bash commands and their output:
+  CLAUDE_LOG_INCLUDE_THINKING=1 CLAUDE_LOG_INCLUDE_TOOLS=0
 """
 
 import hashlib
@@ -42,7 +50,12 @@ def _env_flag(name: str, default: bool) -> bool:
 
 LOG_DIR = os.path.expanduser(os.environ.get("CLAUDE_LOG_DIR", "~/claude-logs"))
 INCLUDE_THINKING = _env_flag("CLAUDE_LOG_INCLUDE_THINKING", False)
+# Master switch, then per-kind overrides that default to it. This lets you keep
+# the model's thinking while hiding the bash commands it runs (tool calls) and/or
+# their output (tool results).
 INCLUDE_TOOLS = _env_flag("CLAUDE_LOG_INCLUDE_TOOLS", True)
+INCLUDE_TOOL_CALLS = _env_flag("CLAUDE_LOG_INCLUDE_TOOL_CALLS", INCLUDE_TOOLS)
+INCLUDE_TOOL_RESULTS = _env_flag("CLAUDE_LOG_INCLUDE_TOOL_RESULTS", INCLUDE_TOOLS)
 try:
     MAX_TOOL_CHARS = int(os.environ.get("CLAUDE_LOG_MAX_TOOL_CHARS", "1500"))
 except ValueError:
@@ -249,7 +262,7 @@ def _render_entry_body(o):
             joined = "\n".join(t for t in user_texts if t).strip()
             if joined:
                 parts.append(f"### 🧑 User · {_fmt_ts(ts)}\n\n{joined}")
-            if INCLUDE_TOOLS:
+            if INCLUDE_TOOL_RESULTS:
                 for tr in tool_results:
                     out = _truncate(_content_to_text(tr.get("content")), MAX_TOOL_CHARS).strip()
                     if out:
@@ -282,7 +295,7 @@ def _render_entry_body(o):
                         "<details>\n<summary>💭 thinking</summary>\n\n"
                         f"{think}\n\n</details>"
                     )
-            elif bt == "tool_use" and INCLUDE_TOOLS:
+            elif bt == "tool_use" and INCLUDE_TOOL_CALLS:
                 name = b.get("name", "tool")
                 try:
                     pretty = json.dumps(b.get("input", {}), ensure_ascii=False, indent=2)
