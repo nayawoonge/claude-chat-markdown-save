@@ -3,11 +3,12 @@
 Claude Chat Logger — Stop-hook transcript-to-markdown converter.
 
 Reads the Stop-hook JSON payload from stdin, locates the session's JSONL
-transcript, and (re)writes the WHOLE conversation as a single Markdown file.
+transcript, and APPENDS any new turns to a single per-session Markdown file.
 
-Because the file is fully rewritten on every stop, the Markdown log always
-holds the complete session — nothing scrolls away or gets lost, even when the
-in-editor chat view truncates old messages.
+The log is grow-only: whatever is already saved is kept verbatim and only
+turns not yet present are added (matched by a hidden per-turn id marker). So a
+turn is never lost even if the source transcript later drops it — e.g. after
+context compaction — and nothing scrolls away when the chat view truncates.
 
 The transcript JSONL format is internal to Claude Code and can change between
 releases, so every field access here is defensive: unknown line types are
@@ -21,6 +22,7 @@ Configuration (all optional, via environment variables):
   CLAUDE_LOG_MAX_TOOL_CHARS     Truncate tool input/output to N chars (default: 1500)
 """
 
+import hashlib
 import json
 import os
 import re
@@ -179,115 +181,149 @@ def _resolve_output_path(log_dir, session_id, disp_title):
 # Rendering
 # ----------------------------------------------------------------------------
 
-def render_markdown(entries, session_id, cwd):
-    first_ts = None
-    last_ts = None
-    body = []
+TURN_MARKER_RE = re.compile(r"<!--\s*turn:\s*(.+?)\s*-->")
+HEADER_SEP = "\n---\n"
 
-    # Prefer the model-generated session title when one exists; fall back to
-    # the first user message (filled in during the main pass below).
-    title = None
+
+def _compute_title(entries):
+    """The session's display title: prefer the model title, else first user msg."""
+    ai_title = None
     for o in entries:
         if isinstance(o, dict) and o.get("type") == "ai-title":
             t = o.get("aiTitle") or o.get("title")
             if t:
-                title = t
-    ai_title_present = title is not None
-
+                ai_title = t
+    if ai_title:
+        return ai_title
     for o in entries:
-        if not isinstance(o, dict):
+        if isinstance(o, dict) and o.get("type") == "user":
+            c = (o.get("message") or {}).get("content")
+            if isinstance(c, str) and c.strip():
+                return c.strip()
+            if isinstance(c, list):
+                txt = "\n".join(
+                    b.get("text", "") for b in c
+                    if isinstance(b, dict) and b.get("type") == "text"
+                ).strip()
+                if txt:
+                    return txt
+    return None
+
+
+def _entry_id(o):
+    """A stable per-entry id used to deduplicate already-written turns."""
+    uid = o.get("uuid")
+    if uid:
+        return str(uid)
+    # Fall back to a content hash so re-runs don't duplicate the same turn.
+    try:
+        blob = json.dumps(o.get("message", o), ensure_ascii=False, sort_keys=True)
+    except Exception:
+        blob = str(o)
+    return "h" + hashlib.sha1(blob.encode("utf-8", "replace")).hexdigest()[:16]
+
+
+def _render_entry_body(o):
+    """Render one transcript entry to a Markdown block (without the id marker).
+
+    Returns None for entries that produce no visible content.
+    """
+    etype = o.get("type")
+    ts = o.get("timestamp")
+
+    if etype == "user":
+        content = (o.get("message") or {}).get("content")
+        parts = []
+        if isinstance(content, str):
+            if content.strip():
+                parts.append(f"### 🧑 User · {_fmt_ts(ts)}\n\n{content.strip()}")
+        elif isinstance(content, list):
+            user_texts, tool_results = [], []
+            for b in content:
+                if not isinstance(b, dict):
+                    continue
+                if b.get("type") == "text":
+                    user_texts.append(b.get("text", ""))
+                elif b.get("type") == "tool_result":
+                    tool_results.append(b)
+            joined = "\n".join(t for t in user_texts if t).strip()
+            if joined:
+                parts.append(f"### 🧑 User · {_fmt_ts(ts)}\n\n{joined}")
+            if INCLUDE_TOOLS:
+                for tr in tool_results:
+                    out = _truncate(_content_to_text(tr.get("content")), MAX_TOOL_CHARS).strip()
+                    if out:
+                        parts.append(
+                            "<details>\n<summary>🔧 tool result</summary>\n\n"
+                            f"```\n{out}\n```\n\n</details>"
+                        )
+        return "\n\n".join(parts) if parts else None
+
+    if etype == "assistant":
+        content = (o.get("message") or {}).get("content")
+        blocks = content if isinstance(content, list) else [content]
+        rendered = []
+        for b in blocks:
+            if isinstance(b, str):
+                if b.strip():
+                    rendered.append(b.strip())
+                continue
+            if not isinstance(b, dict):
+                continue
+            bt = b.get("type")
+            if bt == "text":
+                t = b.get("text", "").strip()
+                if t:
+                    rendered.append(t)
+            elif bt == "thinking" and INCLUDE_THINKING:
+                think = (b.get("thinking") or "").strip()
+                if think:
+                    rendered.append(
+                        "<details>\n<summary>💭 thinking</summary>\n\n"
+                        f"{think}\n\n</details>"
+                    )
+            elif bt == "tool_use" and INCLUDE_TOOLS:
+                name = b.get("name", "tool")
+                try:
+                    pretty = json.dumps(b.get("input", {}), ensure_ascii=False, indent=2)
+                except Exception:
+                    pretty = str(b.get("input", {}))
+                pretty = _truncate(pretty, MAX_TOOL_CHARS)
+                rendered.append(
+                    f"<details>\n<summary>🔧 tool call · <code>{name}</code></summary>\n\n"
+                    f"```json\n{pretty}\n```\n\n</details>"
+                )
+        if rendered:
+            return f"### 🤖 Claude · {_fmt_ts(ts)}\n\n" + "\n\n".join(rendered)
+    return None
+
+
+def render_turns(entries):
+    """Turn transcript entries into a list of {id, md} blocks + metadata.
+
+    Each block carries a hidden `<!-- turn: id -->` marker so the appender can
+    tell which turns are already in the file and only add new ones.
+    """
+    turns = []
+    first_ts = None
+    last_ts = None
+    for o in entries:
+        if not isinstance(o, dict) or o.get("type") not in ("user", "assistant"):
             continue
-        etype = o.get("type")
         ts = o.get("timestamp")
         if ts:
             first_ts = first_ts or ts
             last_ts = ts
-
-        if etype == "ai-title":
+        block = _render_entry_body(o)
+        if not block:
             continue
+        tid = _entry_id(o)
+        turns.append({"id": tid, "md": f"<!-- turn: {tid} -->\n{block}\n"})
+    return turns, first_ts, last_ts
 
-        if etype == "user":
-            msg = o.get("message", {}) or {}
-            content = msg.get("content")
-            if isinstance(content, str):
-                text = content.strip()
-                if text:
-                    body.append(f"### 🧑 User · {_fmt_ts(ts)}\n\n{text}\n")
-                    if not ai_title_present and not title:
-                        title = text
-            elif isinstance(content, list):
-                # A user turn that is a list is usually tool_result output.
-                user_texts = []
-                tool_results = []
-                for b in content:
-                    if not isinstance(b, dict):
-                        continue
-                    bt = b.get("type")
-                    if bt == "text":
-                        user_texts.append(b.get("text", ""))
-                    elif bt == "tool_result":
-                        tool_results.append(b)
-                joined = "\n".join(t for t in user_texts if t).strip()
-                if joined:
-                    body.append(f"### 🧑 User · {_fmt_ts(ts)}\n\n{joined}\n")
-                    if not ai_title_present and not title:
-                        title = joined
-                if INCLUDE_TOOLS and tool_results:
-                    for tr in tool_results:
-                        out = _truncate(_content_to_text(tr.get("content")), MAX_TOOL_CHARS).strip()
-                        if out:
-                            body.append(
-                                "<details>\n<summary>🔧 tool result</summary>\n\n"
-                                f"```\n{out}\n```\n\n</details>\n"
-                            )
 
-        elif etype == "assistant":
-            msg = o.get("message", {}) or {}
-            content = msg.get("content")
-            blocks = content if isinstance(content, list) else [content]
-            rendered = []
-            for b in blocks:
-                if isinstance(b, str):
-                    if b.strip():
-                        rendered.append(b.strip())
-                    continue
-                if not isinstance(b, dict):
-                    continue
-                bt = b.get("type")
-                if bt == "text":
-                    t = b.get("text", "").strip()
-                    if t:
-                        rendered.append(t)
-                elif bt == "thinking" and INCLUDE_THINKING:
-                    think = (b.get("thinking") or "").strip()
-                    if think:
-                        rendered.append(
-                            "<details>\n<summary>💭 thinking</summary>\n\n"
-                            f"{think}\n\n</details>"
-                        )
-                elif bt == "tool_use" and INCLUDE_TOOLS:
-                    name = b.get("name", "tool")
-                    tool_input = b.get("input", {})
-                    try:
-                        pretty = json.dumps(tool_input, ensure_ascii=False, indent=2)
-                    except Exception:
-                        pretty = str(tool_input)
-                    pretty = _truncate(pretty, MAX_TOOL_CHARS)
-                    rendered.append(
-                        f"<details>\n<summary>🔧 tool call · <code>{name}</code></summary>\n\n"
-                        f"```json\n{pretty}\n```\n\n</details>"
-                    )
-            if rendered:
-                body.append(f"### 🤖 Claude · {_fmt_ts(ts)}\n\n" + "\n\n".join(rendered) + "\n")
-
-        # everything else (attachment, queue-operation, last-prompt, mode, …) is skipped
-
-    # ---- assemble document ----
-    disp_title = (title or "Claude Code session").strip().replace("\n", " ")
-    if len(disp_title) > 80:
-        disp_title = disp_title[:80] + "…"
-
-    header = [
+def build_header(session_id, disp_title, cwd, first_ts, last_ts):
+    lines = [
         f"<!-- claude-session: {session_id} -->",
         f"# {disp_title}",
         "",
@@ -296,13 +332,22 @@ def render_markdown(entries, session_id, cwd):
         f"- **Started:** {_fmt_ts(first_ts) or 'unknown'}",
         f"- **Last updated:** {_fmt_ts(last_ts) or 'unknown'}",
         "",
-        "> Auto-saved by [claude-chat-logger](https://github.com/) — the full session is",
-        "> rewritten on every stop, so nothing is lost when the chat view truncates.",
+        "> Auto-saved by [claude-chat-logger](https://github.com/) — new turns are",
+        "> **appended** on every stop and existing ones are never rewritten, so the",
+        "> full session is preserved even if the chat view (or context) is truncated.",
         "",
         "---",
         "",
     ]
-    return "\n".join(header) + "\n".join(body), disp_title, first_ts
+    return "\n".join(lines)
+
+
+def _split_existing(text):
+    """Split an existing log file into (body_after_header, set_of_turn_ids)."""
+    idx = text.find(HEADER_SEP)
+    body = text[idx + len(HEADER_SEP):] if idx != -1 else text
+    ids = set(TURN_MARKER_RE.findall(text))
+    return body.strip("\n"), ids
 
 
 def main():
@@ -337,7 +382,14 @@ def main():
     if not entries:
         return 0
 
-    markdown, disp_title, first_ts = render_markdown(entries, session_id, cwd)
+    turns, first_ts, last_ts = render_turns(entries)
+    if not turns:
+        return 0
+
+    title = _compute_title(entries)
+    disp_title = (title or "Claude Code session").strip().replace("\n", " ")
+    if len(disp_title) > 80:
+        disp_title = disp_title[:80] + "…"
 
     try:
         os.makedirs(LOG_DIR, exist_ok=True)
@@ -345,8 +397,34 @@ def main():
         # changed since last stop, this renames the existing file instead of
         # creating a new one.
         out_path = _resolve_output_path(LOG_DIR, session_id, disp_title)
+
+        # Grow-only append: keep whatever is already saved verbatim and add
+        # only turns not yet present. This means a turn is never lost even if
+        # the source transcript later drops it (e.g. after context compaction).
+        old_body, existing_ids = "", set()
+        if os.path.exists(out_path):
+            try:
+                old_body, existing_ids = _split_existing(
+                    open(out_path, encoding="utf-8").read()
+                )
+            except Exception:
+                old_body, existing_ids = "", set()
+
+        new_blocks = [t["md"] for t in turns if t["id"] not in existing_ids]
+        if not new_blocks and old_body:
+            # Nothing new to add, but the title may have changed — the rename in
+            # _resolve_output_path already handled that, so we can stop here.
+            return 0
+
+        # Started time: keep the earliest we can see. If we're extending an
+        # existing file we don't have its original start, so fall back to now's
+        # first_ts only when there was no prior body.
+        body_parts = [p for p in (old_body, "\n\n".join(new_blocks)) if p]
+        body = "\n\n".join(body_parts).strip("\n")
+
+        header = build_header(session_id, disp_title, cwd, first_ts, last_ts)
         with open(out_path, "w", encoding="utf-8") as fh:
-            fh.write(markdown)
+            fh.write(header + body + "\n")
     except Exception:
         return 0
 

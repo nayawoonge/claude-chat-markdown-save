@@ -18,7 +18,7 @@ VS Code(또는 에디터) 채팅 패널은 화면에 보이는 양이 제한적�
 
 - **One `.md` file per session, named after the session title** — e.g. `~/claude-logs/fix-login-bug.md`
 - Full conversation: your prompts, Claude's replies, and (collapsible) tool calls & results
-- Rewritten on every stop → always complete, never partial
+- **Grow-only append** → each new turn is added to the file; already-saved turns are never rewritten. Even if Claude Code compacts the context and the source transcript drops early messages, they stay in your `.md`.
 - **The same file keeps updating** as you keep chatting. If Claude renames the session mid-way, the plugin **renames the existing file** instead of leaving a new one behind — so you never end up with duplicate files for one session.
 - Two different sessions that happen to share a title are kept apart with a short id suffix (e.g. `fix-login-bug-2bdf2c7b.md`).
 
@@ -66,6 +66,8 @@ export CLAUDE_LOG_INCLUDE_TOOLS=0
 ## How it works / 동작 방식
 
 The plugin registers a [`Stop` hook](https://code.claude.com/docs/en/hooks-guide). When Claude finishes responding, Claude Code runs `scripts/save_transcript.py` and passes it the session's `transcript_path` on stdin. The script parses the JSONL transcript and (over)writes the Markdown file.
+
+Each turn is written with a hidden `<!-- turn: id -->` marker. On the next stop the script reads the existing file, sees which turns are already there, and appends only the new ones — so the log is **grow-only** and a turn is never lost even if the source transcript later drops it (e.g. after `/compact`).
 
 The transcript format is internal to Claude Code and can change between versions, so the parser is deliberately defensive: unknown line types are skipped, missing fields fall back to defaults, and the script **never raises** into the hook runner — a parsing failure just means that one stop produces no update, it never blocks Claude.
 
