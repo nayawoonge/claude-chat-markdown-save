@@ -72,16 +72,6 @@ def _fmt_ts(ts: str) -> str:
         return ts
 
 
-def _date_prefix(ts: str) -> str:
-    if not ts:
-        return "0000-00-00"
-    try:
-        return datetime.fromisoformat(ts.replace("Z", "+00:00")).strftime("%Y-%m-%d")
-    except Exception:
-        m = re.match(r"(\d{4}-\d{2}-\d{2})", ts)
-        return m.group(1) if m else "0000-00-00"
-
-
 def _truncate(text: str, limit: int) -> str:
     if limit and len(text) > limit:
         return text[:limit] + f"\n… [truncated, {len(text) - limit} more chars]"
@@ -108,6 +98,81 @@ def _content_to_text(content) -> str:
     if content is None:
         return ""
     return str(content)
+
+
+SESSION_MARKER = "<!-- claude-session: {sid} -->"
+
+
+def _file_session_id(path: str):
+    """Read the session-id marker from an existing log file, if present."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            first = fh.readline()
+    except Exception:
+        return None
+    m = re.match(r"<!--\s*claude-session:\s*(.+?)\s*-->", first)
+    return m.group(1) if m else None
+
+
+def _find_session_file(log_dir: str, session_id: str):
+    """Return the path of the existing log file for this session, or None.
+
+    Files are matched by the embedded session-id marker, not by name — so a
+    session's file is found again even after its title (and thus filename)
+    changed on a previous run.
+    """
+    try:
+        names = os.listdir(log_dir)
+    except Exception:
+        return None
+    for name in names:
+        if not name.endswith(".md"):
+            continue
+        path = os.path.join(log_dir, name)
+        if _file_session_id(path) == session_id:
+            return path
+    return None
+
+
+def _resolve_output_path(log_dir, session_id, disp_title):
+    """Decide the file to write, reusing/renaming this session's file.
+
+    - Filename is derived from the session title (clean, no date/id noise).
+    - If this session already has a file (found via its marker), and the title
+      changed, the existing file is RENAMED rather than a new one created.
+    - If a *different* session already owns the desired name, a short session
+      id is appended to avoid clobbering it.
+    """
+    base = _slugify(disp_title, 60)
+    short_sid = session_id.split("-")[0][:8]
+
+    existing = _find_session_file(log_dir, session_id)
+
+    def _claim(candidate):
+        """Is `candidate` free for us (missing, or already ours)?"""
+        path = os.path.join(log_dir, candidate)
+        if not os.path.exists(path):
+            return path
+        owner = _file_session_id(path)
+        if owner == session_id:
+            return path
+        return None
+
+    target = _claim(base + ".md") or _claim(f"{base}-{short_sid}.md")
+    if target is None:
+        # Extremely unlikely: fall back to a fully-qualified unique name.
+        target = os.path.join(log_dir, f"{base}-{session_id}.md")
+
+    # If we already had a file under a different (old-title) name, move it.
+    if existing and os.path.abspath(existing) != os.path.abspath(target):
+        try:
+            os.replace(existing, target)
+        except Exception:
+            # If the rename fails, just write to the new target; the old file
+            # stays behind but the session content is never lost.
+            pass
+
+    return target
 
 
 # ----------------------------------------------------------------------------
@@ -223,6 +288,7 @@ def render_markdown(entries, session_id, cwd):
         disp_title = disp_title[:80] + "…"
 
     header = [
+        f"<!-- claude-session: {session_id} -->",
         f"# {disp_title}",
         "",
         f"- **Session:** `{session_id}`",
@@ -273,14 +339,12 @@ def main():
 
     markdown, disp_title, first_ts = render_markdown(entries, session_id, cwd)
 
-    # Stable filename: date + project + title + short session id.
-    project = _slugify(os.path.basename(cwd.rstrip("/")) or "project", 24)
-    short_sid = session_id.split("-")[0][:8]
-    fname = f"{_date_prefix(first_ts)}_{project}_{_slugify(disp_title, 32)}_{short_sid}.md"
-
     try:
         os.makedirs(LOG_DIR, exist_ok=True)
-        out_path = os.path.join(LOG_DIR, fname)
+        # One file per session, named after the session title. If the title
+        # changed since last stop, this renames the existing file instead of
+        # creating a new one.
+        out_path = _resolve_output_path(LOG_DIR, session_id, disp_title)
         with open(out_path, "w", encoding="utf-8") as fh:
             fh.write(markdown)
     except Exception:
