@@ -10,7 +10,7 @@ A tiny [Claude Code](https://code.claude.com) plugin that **auto-saves every ses
 
 The VS Code / editor chat panel only keeps so much on screen. When a session gets long, old turns scroll out of view and can be hard — or impossible — to get back to. Your conversation is *not* actually deleted (Claude Code keeps a JSONL transcript under `~/.claude/projects/…`), but that file is machine-oriented and changes format between releases.
 
-This plugin turns that transcript into a **clean, human-readable Markdown file**, and rewrites it **on every stop**, so the file always holds the *complete* session.
+This plugin turns that transcript into a **clean, human-readable Markdown file**, appending new turns **on every stop**, so the file always holds the *complete* session.
 
 VS Code(또는 에디터) 채팅 패널은 화면에 보이는 양이 제한적이라, 대화가 길어지면 예전 메시지가 위로 밀려 다시 보기 어렵습니다. 실제로 삭제되는 건 아니지만(원본은 `~/.claude/projects/…`에 JSONL로 저장됨) 그 파일은 사람이 읽기 불편하고 포맷도 버전마다 바뀝니다. 이 플러그인은 그 기록을 **읽기 좋은 마크다운**으로 바꿔, **응답이 끝날 때마다** 전체 대화를 다시 저장합니다.
 
@@ -28,17 +28,17 @@ VS Code(또는 에디터) 채팅 패널은 화면에 보이는 양이 제한적�
 
 ```bash
 # 1. Add this repo as a plugin marketplace
-/plugin marketplace add hwangjiung/claude-chat-logger
+/plugin marketplace add nayawoonge/claude-chat-logger
 
 # 2. Install the plugin
-/plugin install claude-chat-logger@hwangjiung-plugins
+/plugin install claude-chat-logger@nayawoonge-plugins
 ```
 
 Or from the CLI:
 
 ```bash
-claude plugin marketplace add hwangjiung/claude-chat-logger
-claude plugin install claude-chat-logger@hwangjiung-plugins --scope user
+claude plugin marketplace add nayawoonge/claude-chat-logger
+claude plugin install claude-chat-logger@nayawoonge-plugins --scope user
 ```
 
 That's it. From now on, every session is saved to `~/claude-logs/`.
@@ -65,7 +65,7 @@ export CLAUDE_LOG_INCLUDE_TOOLS=0
 
 ## How it works / 동작 방식
 
-The plugin registers a [`Stop` hook](https://code.claude.com/docs/en/hooks-guide). When Claude finishes responding, Claude Code runs `scripts/save_transcript.py` and passes it the session's `transcript_path` on stdin. The script parses the JSONL transcript and (over)writes the Markdown file.
+The plugin registers a [`Stop` hook](https://code.claude.com/docs/en/hooks-guide). When Claude finishes responding, Claude Code runs `scripts/save_transcript.py` and passes it the session's `transcript_path` on stdin. The script parses the JSONL transcript and appends any new turns to the Markdown file.
 
 Each turn is written with a hidden `<!-- turn: id -->` marker. On the next stop the script reads the existing file, sees which turns are already there, and appends only the new ones — so the log is **grow-only** and a turn is never lost even if the source transcript later drops it (e.g. after `/compact`).
 
@@ -86,4 +86,4 @@ echo '{"transcript_path":"'"$HOME"'/.claude/projects/<proj>/<session>.jsonl","se
 
 ## License
 
-MIT © hwangjiung
+MIT © nayawoonge

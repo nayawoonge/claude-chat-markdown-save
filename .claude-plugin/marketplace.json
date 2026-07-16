@@ -1,9 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
-  "name": "hwangjiung-plugins",
-  "description": "Personal Claude Code plugins by hwangjiung.",
+  "name": "nayawoonge-plugins",
+  "description": "Personal Claude Code plugins by nayawoonge.",
   "owner": {
-    "name": "hwangjiung"
+    "name": "nayawoonge"
   },
   "plugins": [
     {
@@ -15,7 +15,7 @@
       "keywords": ["transcript", "markdown", "logging", "backup"],
       "source": {
         "source": "github",
-        "repo": "hwangjiung/claude-chat-logger"
+        "repo": "nayawoonge/claude-chat-logger"
       }
     }
   ]
