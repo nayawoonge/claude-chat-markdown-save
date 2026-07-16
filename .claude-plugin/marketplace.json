@@ -13,10 +13,7 @@
       "version": "1.0.0",
       "license": "MIT",
       "keywords": ["transcript", "markdown", "logging", "backup"],
-      "source": {
-        "source": "github",
-        "repo": "nayawoonge/claude-chat-logger"
-      }
+      "source": "./"
     }
   ]
 }
