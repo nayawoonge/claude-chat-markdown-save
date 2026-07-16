@@ -28,7 +28,7 @@ VS Code(또는 에디터) 채팅 패널은 화면에 보이는 양이 제한적�
 
 ```bash
 # 1. Add this repo as a plugin marketplace
-/plugin marketplace add nayawoonge/claude-chat-logger
+/plugin marketplace add nayawoonge/claude-chat-markdown-save
 
 # 2. Install the plugin
 /plugin install claude-chat-logger@nayawoonge-plugins
@@ -37,7 +37,7 @@ VS Code(또는 에디터) 채팅 패널은 화면에 보이는 양이 제한적�
 Or from the CLI:
 
 ```bash
-claude plugin marketplace add nayawoonge/claude-chat-logger
+claude plugin marketplace add nayawoonge/claude-chat-markdown-save
 claude plugin install claude-chat-logger@nayawoonge-plugins --scope user
 ```
 

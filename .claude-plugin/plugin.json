@@ -5,8 +5,8 @@
   "author": {
     "name": "nayawoonge"
   },
-  "homepage": "https://github.com/nayawoonge/claude-chat-logger",
-  "repository": "https://github.com/nayawoonge/claude-chat-logger",
+  "homepage": "https://github.com/nayawoonge/claude-chat-markdown-save",
+  "repository": "https://github.com/nayawoonge/claude-chat-markdown-save",
   "license": "MIT",
   "keywords": ["transcript", "markdown", "logging", "hooks", "backup", "history"]
 }
