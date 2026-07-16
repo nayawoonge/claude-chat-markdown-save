@@ -1,0 +1,14 @@
+# Local logs (never commit conversation content)
+claude-logs/
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.pyc

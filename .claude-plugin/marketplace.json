@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
+  "name": "hwangjiung-plugins",
+  "description": "Personal Claude Code plugins by hwangjiung.",
+  "owner": {
+    "name": "hwangjiung"
+  },
+  "plugins": [
+    {
+      "name": "claude-chat-logger",
+      "displayName": "Claude Chat Logger",
+      "description": "Auto-saves each Claude Code session as a continuously-updated Markdown file.",
+      "version": "1.0.0",
+      "license": "MIT",
+      "keywords": ["transcript", "markdown", "logging", "backup"],
+      "source": {
+        "source": "github",
+        "repo": "hwangjiung/claude-chat-logger"
+      }
+    }
+  ]
+}

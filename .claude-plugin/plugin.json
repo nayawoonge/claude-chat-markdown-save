@@ -1,0 +1,12 @@
+{
+  "name": "claude-chat-logger",
+  "description": "Auto-saves each Claude Code session as a continuously-updated Markdown file, so long chats are never lost when the chat view scrolls or truncates.",
+  "version": "1.0.0",
+  "author": {
+    "name": "hwangjiung"
+  },
+  "homepage": "https://github.com/hwangjiung/claude-chat-logger",
+  "repository": "https://github.com/hwangjiung/claude-chat-logger",
+  "license": "MIT",
+  "keywords": ["transcript", "markdown", "logging", "hooks", "backup", "history"]
+}
