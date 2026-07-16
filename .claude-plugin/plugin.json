@@ -1,5 +1,5 @@
 {
-  "name": "claude-chat-logger",
+  "name": "claude-chat-markdown-save",
   "description": "Auto-saves each Claude Code session as a continuously-updated Markdown file, so long chats are never lost when the chat view scrolls or truncates.",
   "version": "1.0.0",
   "author": {

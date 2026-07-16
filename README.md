@@ -1,4 +1,4 @@
-# Claude Chat Logger
+# Claude Chat Markdown Save
 
 A tiny [Claude Code](https://code.claude.com) plugin that **auto-saves every session as a Markdown file** — so long conversations are never lost when the chat view scrolls away or truncates old messages.
 
@@ -31,14 +31,14 @@ VS Code(또는 에디터) 채팅 패널은 화면에 보이는 양이 제한적�
 /plugin marketplace add nayawoonge/claude-chat-markdown-save
 
 # 2. Install the plugin
-/plugin install claude-chat-logger@nayawoonge-plugins
+/plugin install claude-chat-markdown-save@nayawoonge-plugins
 ```
 
 Or from the CLI:
 
 ```bash
 claude plugin marketplace add nayawoonge/claude-chat-markdown-save
-claude plugin install claude-chat-logger@nayawoonge-plugins --scope user
+claude plugin install claude-chat-markdown-save@nayawoonge-plugins --scope user
 ```
 
 That's it. From now on, every session is saved to `~/claude-logs/`.

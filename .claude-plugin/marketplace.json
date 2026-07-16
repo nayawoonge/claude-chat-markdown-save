@@ -8,7 +8,7 @@
   },
   "plugins": [
     {
-      "name": "claude-chat-logger",
+      "name": "claude-chat-markdown-save",
       "description": "Auto-saves each Claude Code session as a continuously-updated Markdown file.",
       "version": "1.0.0",
       "license": "MIT",

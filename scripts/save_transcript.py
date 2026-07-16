@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Claude Chat Logger — Stop-hook transcript-to-markdown converter.
+Claude Chat Markdown Save — Stop-hook transcript-to-markdown converter.
 
 Reads the Stop-hook JSON payload from stdin, locates the session's JSONL
 transcript, and APPENDS any new turns to a single per-session Markdown file.
@@ -332,7 +332,7 @@ def build_header(session_id, disp_title, cwd, first_ts, last_ts):
         f"- **Started:** {_fmt_ts(first_ts) or 'unknown'}",
         f"- **Last updated:** {_fmt_ts(last_ts) or 'unknown'}",
         "",
-        "> Auto-saved by [claude-chat-logger](https://github.com/) — new turns are",
+        "> Auto-saved by [claude-chat-markdown-save](https://github.com/nayawoonge/claude-chat-markdown-save) — new turns are",
         "> **appended** on every stop and existing ones are never rewritten, so the",
         "> full session is preserved even if the chat view (or context) is truncated.",
         "",
