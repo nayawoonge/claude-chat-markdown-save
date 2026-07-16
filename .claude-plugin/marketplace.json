@@ -1,14 +1,14 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
   "name": "nayawoonge-plugins",
-  "description": "Personal Claude Code plugins by nayawoonge.",
   "owner": {
     "name": "nayawoonge"
+  },
+  "metadata": {
+    "description": "Personal Claude Code plugins by nayawoonge."
   },
   "plugins": [
     {
       "name": "claude-chat-logger",
-      "displayName": "Claude Chat Logger",
       "description": "Auto-saves each Claude Code session as a continuously-updated Markdown file.",
       "version": "1.0.0",
       "license": "MIT",
